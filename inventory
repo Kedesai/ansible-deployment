@@ -1,0 +1,8 @@
+#Testing
+
+[web]
+kd12345.new.prod
+kd67890.new.prod
+
+[all:vars]
+#ansible_ssh_private_key_file=~/.ssh/id_rsa

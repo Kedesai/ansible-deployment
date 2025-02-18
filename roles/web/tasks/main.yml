@@ -1,0 +1,206 @@
+---
+
+- name: Include vrs
+  ansible.builtin.include_vars:
+    file: "../../group_vars/all/vars.yml"
+
+- name: Stop an application pool on {{ inventory_hostname }}
+  community.windows.win_iis_webapppool:
+    name: "{{ item }}"
+    state: stopped
+
+- name: Stop Datadog service on {{ inventory_hostname }}.
+  win_service:
+    name: "{{ item }}"
+    state: stopped
+  # when: not datadog_skip_running_check and datadog_enabled and not ansible_check_mode
+  # register: service_result
+  # failed_when: service_result.rc !=0
+  with_list:
+    - datadog-trace-agent
+    - datadog-process-agent
+    - datadog-system-probe
+    - datadog agent
+
+  # dependencies: [ Datadog Trace Agent, Datadog Process Agent, Datadog System Probe,  ]
+  # force_dependent_services: true
+
+- name: Remove Datadog service Monitoring on {{ inventory_hostname }}.
+  community.windows.win_lineinfile:
+    path: C:\ProgramData\Datadog\conf.d\windows_service.d\conf.yaml
+    # regexp: '{{ AppName }}'
+    regexp: {{ AppName }}'
+    state: absent
+
+- name: Stop SplunkForwarder service on {{ inventory_hostname }}.
+  win_service:
+    name: SplunkForwarder Service
+    state: stopped
+    
+- name: Remove Splunk configuration directory for {{ SplunkApp }}.
+  ansible.windows.win_file:
+    path: C:\ProgramFiles\SplunkUniversalForwarder\etc\apps\{{ SplunkApp }}
+    state: absent
+
+- name: Remove Application configuration directory on '{{ inventory_hostname }}' for '{{ AppName }}'.
+  ansible.windows.win_file:
+    # path: C:\inetpub\dp-web\{{ AppName }}
+    path: c:\inetpub\dp-web\{{ AppName }}'
+    state: absent
+
+ - name: Remove a new apppool and set identity of application pool
+   community.windows.win_iis_webapppool:
+       name: newapp
+      state: absent
+      attributes:
+        managedRuntimeVersion: v4.0
+        enable32BitAppOnWin64: false
+        managedPipelineMode: Integrated
+        processModel.identityType: 2
+        processModel.idleTimeout: 0
+        processModel.userName: '{{ ansible_user }}'
+        processModel.password: '{{ ansible_password }}'
+        processModel.loadUserProfile: true
+        recycling.periodicRestart.time: "22:50:00:00.000000"
+        processModel.pingResponseTime: "00:03:00"
+
+ - name: Stop WebMonitorService service on {{inventory_hostname}}.
+   win_service:
+     name: WebMonitorService
+     state: stopped
+
+ - name: Remove webmon configuration for {{ AppName }} using Jinja2 template.
+   ansible.windows.win_template:
+     src: ../../../files/rm-webmon.conf.j2
+     dest: c:\WebMonitor\urls.xml
+     remote_src: no
+     backup: true
+
+ - name: Remove Logs directory for '{{ AppName }}' on '{{ inventory_hostname }}'.
+   ansible.windows.win_file:
+     path: L:\logs\{{ AppName }}'
+     state: absent 
+
+ - name: Create Application configuration directory for {{AppName}} on {{inventory_hostname}}.
+   ansible.windows.win_file:
+    # path: C:\inetpub\dp-web\{{ AppName }}
+     path: c:\inetpub\dp-web\{{ AppName }}'
+     state: directory 
+
+ - name: Temporarily copy from  Enrollment to {{ AppName }}' just to startup the application.
+   ansible.windows.win_copy:
+    src: C:\inetpub\dp-web\Enrollment\
+    dest: C:\inetpub\dp-web\{{ AppName }}'
+    remote_src: yes
+    backup: no
+
+ - name: Create a new apppool and set identity of application pool
+   community.windows.win_iis_webapppool:
+      name: {{ AppName }}'
+      state: present
+      attributes:
+        managedRuntimeVersion: v4.0
+        enable32BitAppOnWin64: false
+        managedPipelineMode: Integrated
+        processModel.identityType: 2
+        processModel.idleTimeout: 0
+        processModel.userName: '{{ ansible_user }}'
+        processModel.password: '{{ ansible_password }}'
+        processModel.loadUserProfile: true
+        recycling.periodicRestart.time: "22:50:00:00.000000"
+        processModel.pingResponseTime: "00:03:00"
+
+ - name: Add Physical {{ AppName }}' webapplication on IIS.
+   community.windows.win_iis_webapplication:
+    name: {{ AppName }}'
+    site: dp-web
+    state: present
+    physical_path: c:\inetpub\dp-web\{{ AppName }}'\v1
+
+ - name: Add virtual path for {{ AppName }}' webapplication on IIS.
+   community.windows.win_iis_webapplication:
+    name: {{ AppName }}'
+    application_pool: {{ AppName }}'
+    site: dp-web
+    state: present
+    #physical_path: c:\inetpub\dp-web\{{ AppName }}'
+    vhost: /{{ AppName }}'/v1
+
+ - name:  Add Datadog configuration directory for {{ AppName }} using Jinja2 template.
+   ansible.windows.win_template:
+     src: ../../../files/dd-add.conf.j2
+     dest: C:\ProgramData\Datadog\conf.d\windows_service.d\conf.yaml
+     remote_src: no
+     backup: yes
+ 
+ - name: Stop Datadog service on {{inventory_hostname}}.
+   win_service:
+     name: "{{ item }}"
+     state: started
+     force_dependent_services: true
+  # when: not datadog_skip_running_check and datadog_enabled and not ansible_check_mode
+  # register: service_result
+  # failed_when: service_result.rc !=0
+   with_list:
+     - datadog-trace-agent
+     - datadog-process-agent
+     - datadog-system-probe
+     - datadog agent
+
+ - name: Add Logs directory on L drive for '{{ AppName }}' on '{{ inventory_hostname }}'.
+   ansible.windows.win_file:
+     path: L:\logs\{{ AppName }}'
+     state: directory
+
+ - name: Add Access to users to L drive logs directory to users and groups.
+   ansible.windows.win_acl:
+     path: L:\logs\{{ AppName }}'
+  #   user:
+  #     - user: BUILTIN\Users
+  #       rights: ReadAndExecute,Synchronize,AppendData,CreateFiles
+     user: BUILTIN\Users
+     rights: ReadAndExecute,Synchronize,AppendData,CreateFiles
+     type: allow
+     state: present
+     inherit: ContainerInherit, ObjectInherit
+     propagation: 'None'
+
+ - name: Add Splunk configuration directory for {{ SplunkApp }}.
+   ansible.windows.win_file:
+   # path: C:\ProgramFiles\SplunkUniversalForwarder\etc\apps\{{ SplunkApp }}
+     path: C:\Program Files\SplunkUniversalForwarder\etc\apps\dp-iis-testing\local\
+     state: directory
+ 
+ - name:  Add Splunk configuration directory for {{ AppName }} using Jinja2 template.
+   ansible.windows.win_template:
+     src: files/sp-add.conf.j2
+     dest: C:\Program Files\SplunkUniversalForwarder\etc\apps\dp-iis-testing\local\inputs.conf
+     remote_src: no
+     backup: yes
+
+ - name: Start SplunkForwarder service on {{inventory_hostname}}.
+   win_service:
+     name: SplunkForwarder Service
+     state: started
+
+ - name: Add webmon configuration for {{ AppName }} using Jinja2 template.
+   ansible.windows.win_template:
+    src: ../../../files/add-webmon.conf.j2
+    dest: c:\WebMonitor\urls.xml
+    remote_src: no
+    backup: yes
+
+ - name: Start WebMonitorService service on {{inventory_hostname}}.
+   win_service:
+     name: WebMonitorService
+     state: started
+
+ - name: Retrieve information about all certificates in the root store
+   community.windows.win_certificate_info:
+    store_name: Root
+   register: ca
+
+ - name: Start an application pool on {{ inventory_hostname }}
+   community.windows.win_iis_webapppool:
+     name: {{ AppName }}
+     state: started

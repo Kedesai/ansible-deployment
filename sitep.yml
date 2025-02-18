@@ -1,0 +1,9 @@
+---
+
+- name: configure and deploy the web servers and application code
+  hosts: web
+  serial: 1
+  environment:
+    PATH: /sbin:/usr/local/sbin:/bin:/usr/bin:/usr/local/bin:/data/icStorage/ansible/scripts:/etc/init.d/
+  roles:
+  - web

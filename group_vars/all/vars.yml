@@ -1,0 +1,22 @@
+# global Version Variables
+gather_facts: false
+AppName: newapp
+AppPath: C:\newapp\Applications\testenv\newapp.WebApi\{{ ver }}
+EndpointName: newapp.endpoint
+HomeDir: C:\inetpub\kd-web\{{ AppName }}
+SplunkApp: newapp-web-test
+SplunkIndex: newapp-web-test
+WorkDir: C:\newapp\Applications\testenv\newapp.WebApi
+NuGetPackageID: "#{EndpointName}.QueueService"
+web_app_log_path: ''
+iis_configuration_path: ''
+ansible_user: "{{ vault_ansible_user }}"
+ansible_password: "{{ vault_ansible_password }}"
+ansible_connection: winrm
+ansible_winrm_scheme: http
+ansible_winrm_transport: ntlm
+ansible_winrm_port: 5985
+ansible_winrm_server_cert_validation: ignore
+ansible_winrm_kerberos_delegation: false
+ansible_winrm_read_timeout_sec: 70
+ansible_winrm_operation_timeout_sec: 60
